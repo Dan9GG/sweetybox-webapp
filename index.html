@@ -94,7 +94,7 @@
             try {
                 catalogContainer.innerHTML = '<div class="loading">Загрузка каталога...</div>';
                 
-                const response = await fetch('catalog.json');
+                const response = await fetch('data.json?_=' + new Date().getTime())
                 
                 if (!response.ok) {
                     throw new Error(`Ошибка сервера: ${response.status}`);
