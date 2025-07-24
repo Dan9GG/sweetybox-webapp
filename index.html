@@ -1,0 +1,282 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SweetyBox | Каталог упаковки</title>
+    <script src="https://telegram.org/js/telegram-web-app.js"></script>
+    <style>
+        :root {
+            --bg-color: #ffffff;
+            --text-color: #000000;
+            --primary-color: #0088cc;
+            --border-color: #e0e0e0;
+            --card-bg: #ffffff;
+        }
+
+        @media (prefers-color-scheme: dark) {
+            :root {
+                --bg-color: #212121;
+                --text-color: #ffffff;
+                --primary-color: #2ea6ff;
+                --border-color: #424242;
+                --card-bg: #2d2d2d;
+            }
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+        }
+
+        body {
+            background: var(--bg-color);
+            color: var(--text-color);
+            padding: 16px;
+            line-height: 1.5;
+        }
+
+        header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+            padding-bottom: 10px;
+            border-bottom: 1px solid var(--border-color);
+        }
+
+        h1 {
+            font-size: 20px;
+            font-weight: 600;
+        }
+
+        .cart-btn {
+            background: var(--primary-color);
+            color: white;
+            border: none;
+            padding: 8px 12px;
+            border-radius: 8px;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            font-size: 14px;
+            cursor: pointer;
+        }
+
+        .category {
+            margin-bottom: 25px;
+        }
+
+        .category-title {
+            font-size: 18px;
+            font-weight: 600;
+            margin-bottom: 12px;
+            padding-left: 5px;
+        }
+
+        .products-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+            gap: 12px;
+        }
+
+        .product-card {
+            background: var(--card-bg);
+            border-radius: 12px;
+            overflow: hidden;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+            transition: transform 0.2s;
+        }
+
+        .product-card:active {
+            transform: scale(0.98);
+        }
+
+        .product-image {
+            width: 100%;
+            height: 120px;
+            object-fit: cover;
+        }
+
+        .product-info {
+            padding: 10px;
+        }
+
+        .product-name {
+            font-size: 14px;
+            font-weight: 500;
+            margin-bottom: 5px;
+            display: -webkit-box;
+            -webkit-line-clamp: 2;
+            -webkit-box-orient: vertical;
+            overflow: hidden;
+        }
+
+        .product-price {
+            font-size: 16px;
+            font-weight: 600;
+            color: var(--primary-color);
+            margin-bottom: 10px;
+        }
+
+        .add-to-cart {
+            width: 100%;
+            background: var(--primary-color);
+            color: white;
+            border: none;
+            padding: 8px;
+            border-radius: 6px;
+            font-size: 14px;
+            cursor: pointer;
+        }
+
+        .loading {
+            text-align: center;
+            padding: 20px;
+            font-size: 16px;
+            color: var(--text-color);
+        }
+
+        .empty-catalog {
+            text-align: center;
+            padding: 40px 20px;
+            color: var(--text-color);
+            opacity: 0.7;
+        }
+    </style>
+</head>
+<body>
+    <header>
+        <h1>Каталог SweetyBox</h1>
+        <button class="cart-btn" id="cart-btn">
+            🛒 <span id="cart-count">0</span>
+        </button>
+    </header>
+
+    <div id="categories-container">
+        <div class="loading">Загрузка каталога...</div>
+    </div>
+
+    <script>
+        // Инициализация Telegram WebApp
+        const tg = window.Telegram.WebApp;
+        tg.expand();
+        
+        // Элементы DOM
+        const categoriesContainer = document.getElementById('categories-container');
+        const cartBtn = document.getElementById('cart-btn');
+        const cartCount = document.getElementById('cart-count');
+
+        // Данные
+        let catalog = [];
+        let cart = JSON.parse(localStorage.getItem('sweetybox_cart')) || [];
+
+        // Загрузка каталога
+        async function loadCatalog() {
+            try {
+                const response = await fetch('products.json');
+                catalog = await response.json();
+                renderCatalog();
+                updateCartUI();
+            } catch (error) {
+                console.error('Ошибка загрузки каталога:', error);
+                categoriesContainer.innerHTML = `
+                    <div class="empty-catalog">
+                        Не удалось загрузить каталог. Пожалуйста, попробуйте позже.
+                    </div>
+                `;
+            }
+        }
+
+        // Отображение каталога
+        function renderCatalog() {
+            if (!catalog.length) {
+                categoriesContainer.innerHTML = `
+                    <div class="empty-catalog">
+                        Каталог пуст. Загляните сюда позже!
+                    </div>
+                `;
+                return;
+            }
+
+            // Группируем товары по категориям
+            const categories = {};
+            catalog.forEach(product => {
+                if (!categories[product.category]) {
+                    categories[product.category] = [];
+                }
+                categories[product.category].push(product);
+            });
+
+            // Рендерим категории
+            let html = '';
+            for (const [categoryName, products] of Object.entries(categories)) {
+                html += `
+                    <div class="category">
+                        <h2 class="category-title">${categoryName}</h2>
+                        <div class="products-grid">
+                            ${products.map(product => `
+                                <div class="product-card" data-id="${product.id}">
+                                    <img src="${product.photo_url}" alt="${product.name}" class="product-image">
+                                    <div class="product-info">
+                                        <div class="product-name">${product.name}</div>
+                                        <div class="product-price">${product.price} ₽</div>
+                                        <button class="add-to-cart" onclick="addToCart('${product.id}')">
+                                            В корзину
+                                        </button>
+                                    </div>
+                                </div>
+                            `).join('')}
+                        </div>
+                    </div>
+                `;
+            }
+
+            categoriesContainer.innerHTML = html;
+        }
+
+        // Работа с корзиной
+        function addToCart(productId) {
+            cart.push(productId);
+            saveCart();
+            updateCartUI();
+            
+            // Анимация добавления
+            const btn = event.target;
+            btn.textContent = '✓ Добавлено';
+            btn.style.backgroundColor = '#4CAF50';
+            setTimeout(() => {
+                btn.textContent = 'В корзину';
+                btn.style.backgroundColor = '';
+            }, 1000);
+        }
+
+        function saveCart() {
+            localStorage.setItem('sweetybox_cart', JSON.stringify(cart));
+        }
+
+        function updateCartUI() {
+            cartCount.textContent = cart.length;
+        }
+
+        // Отправка данных в бота
+        cartBtn.addEventListener('click', () => {
+            tg.sendData(JSON.stringify({
+                action: 'sync_cart',
+                products: cart
+            }));
+            
+            // Можно закрыть WebApp или оставить открытым
+            // tg.close();
+        });
+
+        // Запускаем загрузку при старте
+        document.addEventListener('DOMContentLoaded', loadCatalog);
+
+        // Делаем функции глобальными для обработчиков в HTML
+        window.addToCart = addToCart;
+    </script>
+</body>
+</html>
